@@ -44,6 +44,24 @@
       "air_quality": {
         "name": "{room} qualità dell’aria scarsa"
       }
+    },
+    "sensor": {
+      "electricity_forecast": {
+        "name": "Previsione elettrica per {system}"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Previsioni di consumo elettrico",
+        "data": {
+          "electricity_forecasts": "Previsioni di consumo elettrico"
+        }
+      }
+    },
+    "error": {
+      "invalid_electricity_forecasts": "Controlla stanze, potenze e sensori."
     }
   }
 }

@@ -80,6 +80,13 @@ from .control.mpc_controller import (
 from .control.residual_heat import compute_residual_heat, mean_rebound, residual_tau
 from .control.solar import compute_q_solar_norm
 from .control.thermal_model import RoomModelManager
+from .electricity import (
+    CONF_ELECTRICITY_FORECASTS,
+    ElectricalSystem,
+    RoomDemand,
+    build_forecast,
+    observed_scale,
+)
 from .managers.ac_coil_dry_manager import AcCoilDryManager, CoilDryRoomResult
 from .managers.ac_dry_manager import AcDryManager, AcDryRoomResult, dry_stop_temp
 from .managers.air_quality_manager import AirQualityTracker, VentilationController
@@ -289,6 +296,13 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
         )
         self.entry = entry
+        self.electrical_systems = {
+            key: ElectricalSystem(**config) for key, config in entry.options.get(CONF_ELECTRICITY_FORECASTS, {}).items()
+        }
+        self._electricity_areas = {room for system in self.electrical_systems.values() for room in system.rooms}
+        self._electricity_demands: dict[str, RoomDemand] = {}
+        self._electrical_scale: dict[str, float] = {}
+        self._electrical_last_report: dict[str, float] = {}
         self.rooms: dict = {}
         self.outdoor_temp: float | None = None
         self.outdoor_temp_effective: float | None = None
@@ -476,6 +490,7 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             self._history_store = HistoryStore(self.hass.config.path(".storage/roommind_history"))
 
         room_states: dict[str, dict] = {}
+        self._electricity_demands.clear()
 
         # Read weather forecast and electricity price once for all rooms
         outdoor_forecast = await self._weather_manager.async_read_forecast(settings)
@@ -687,7 +702,40 @@ class RoomMindCoordinator(DataUpdateCoordinator):
             self._solar_sensors.learned = False
 
         self.rooms = room_states
-        return {"rooms": room_states}
+        data = {"rooms": room_states}
+        if self.electrical_systems:
+            data["electricity_forecasts"] = self._build_electricity_forecasts(room_states)
+        return data
+
+    def _build_electricity_forecasts(self, rooms: dict[str, dict]) -> dict[str, Any]:
+        """Publish one series per physical system using the current cycle only."""
+        now = dt_util.utcnow()
+        results = {}
+        demands = {room: demand for room, demand in self._electricity_demands.items() if room in rooms}
+        for key, system in self.electrical_systems.items():
+            if any(room not in demands for room in system.rooms):
+                continue
+            scale = self._electrical_scale.get(key, 1.0)
+            if system.power_sensor and (state := self.hass.states.get(system.power_sensor)):
+                report = (state.last_reported or state.last_updated).timestamp()
+                unit = state.attributes.get("unit_of_measurement")
+                if (
+                    unit in ("W", "kW")
+                    and 0 <= now.timestamp() - report <= 120
+                    and (self._electrical_last_report.get(key) != report)
+                ):
+                    self._electrical_last_report[key] = report
+                    power = read_sensor_value(self.hass, system.power_sensor, key, "electrical power")
+                    if power is not None:
+                        nominal_kw = max(demands[room].power(system, 0) for room in system.rooms)
+                        scale = observed_scale(
+                            scale, power / 1000 if unit == "W" else power, system.standby_kw, nominal_kw
+                        )
+                        self._electrical_scale[key] = scale
+            forecast = build_forecast(f"roommind_{key}", system, demands, now, scale)
+            if forecast is not None:
+                results[key] = forecast
+        return results
 
     def _read_room_sensors(
         self,
@@ -1822,6 +1870,13 @@ class RoomMindCoordinator(DataUpdateCoordinator):
         room_state.update(humidity_control)
         if waiting_for_data:
             room_state["waiting_for_data"] = True
+        if area_id in self._electricity_areas and controller.last_plan is not None:
+            self._electricity_demands[area_id] = RoomDemand(
+                controller.last_plan,
+                controller.plan_outdoor_c,
+                mode,
+                power_fraction,
+            )
         return room_state
 
     def room_solar(self, area_id: str) -> RoomSolar | None:

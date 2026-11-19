@@ -1587,6 +1587,7 @@ class MPCController:
         # Targets without the electricity price shift (only for rooms following the price)
         self._schedule_target_resolver = schedule_target_resolver
         self.last_plan: MPCPlan | None = None
+        self.plan_outdoor_c: list[float] = []
         self._peak_temps_unoccupied: list[float] | None = None
         self.q_solar = q_solar
         self._latitude = latitude
@@ -1985,6 +1986,7 @@ class MPCController:
                 schedule_cool_series=schedule_cool_series,
             )
             self.last_plan = plan
+            self.plan_outdoor_c = outdoor_series
             # Shading can attenuate solar gain, never the body heat of whoever just
             # walked in, so the cover logic reads a peak computed without it (#418).
             # Replaying the plan keeps the control decision itself untouched.

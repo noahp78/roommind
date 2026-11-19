@@ -44,6 +44,24 @@
       "air_quality": {
         "name": "{room} Luftqualität schlecht"
       }
+    },
+    "sensor": {
+      "electricity_forecast": {
+        "name": "Stromverbrauchsprognose für {system}"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Stromverbrauchsprognosen",
+        "data": {
+          "electricity_forecasts": "Stromverbrauchsprognosen"
+        }
+      }
+    },
+    "error": {
+      "invalid_electricity_forecasts": "Prüfe Räume, Leistungswerte und Sensoren."
     }
   }
 }

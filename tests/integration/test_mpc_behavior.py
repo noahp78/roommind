@@ -232,3 +232,25 @@ class TestMPCFallback:
 
         # 20.8 is within 0.5C hysteresis of 21.0 -> should NOT start heating from idle
         assert data["rooms"]["living_room"]["mode"] == "idle"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_exposes_electricity_from_mpc(coordinator, real_store, frozen_ts):
+    """A trained room's real control cycle feeds its configured electricity sensor."""
+    from custom_components.roommind.electricity import ElectricalSystem
+
+    await setup_room(real_store)
+    coordinator.electrical_systems["living_room"] = ElectricalSystem(["living_room"], 2.4)
+    coordinator._electricity_areas.add("living_room")
+    coordinator.hass.states.get = MagicMock(side_effect=make_hass_states(temp="18.0"))
+    coordinator.hass.services.async_call = _make_schedule_service_mock(ACTIVE_SCHEDULE)
+    with patch("time.time", return_value=frozen_ts):
+        untrained = await coordinator._async_update_data()
+        assert untrained["electricity_forecasts"] == {}
+        _train_model_manager(coordinator._model_manager, "living_room")
+        trained = await coordinator._async_update_data()
+    forecast = trained["electricity_forecasts"]["living_room"]
+    assert forecast["schema_version"] == 1
+    assert forecast["forecast_interval_minutes"] == 5
+    assert 0 < forecast["forecast"][0]["power_kw"] <= 2.4
+    assert len(forecast["forecast"]) > 1

@@ -90,6 +90,8 @@ Every feature in detail: [docs/features.md](docs/features.md). Device types, set
 
 </details>
 
+For coordinated battery scheduling, see the [optional electricity forecast](docs/electricity-forecast.md).
+
 ## Getting Started
 
 RoomMind appears as a panel in the sidebar (for administrators) and shows every Home Assistant area as a room.

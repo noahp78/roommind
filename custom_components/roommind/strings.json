@@ -44,6 +44,24 @@
       "air_quality": {
         "name": "{room} air quality poor"
       }
+    },
+    "sensor": {
+      "electricity_forecast": {
+        "name": "Electricity forecast for {system}"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Electricity forecasts",
+        "data": {
+          "electricity_forecasts": "Electricity forecasts"
+        }
+      }
+    },
+    "error": {
+      "invalid_electricity_forecasts": "Check room IDs, equipment ratings and power sensors."
     }
   }
 }

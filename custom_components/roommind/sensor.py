@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
+from typing import Any
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfPower, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -40,6 +42,9 @@ async def async_setup_entry(
     for area_id in rooms:
         entities.extend(_create_room_entities(coordinator, area_id))
         coordinator._entity_areas.add(area_id)
+    entities.extend(
+        RoomMindElectricityForecastSensor(coordinator, system_id) for system_id in coordinator.electrical_systems
+    )
     if entities:
         async_add_entities(entities)
 
@@ -102,3 +107,30 @@ class RoomMindModeSensor(_RoomMindBaseSensor):
             val = room.get("mode", "idle")
             return str(val) if val is not None else "idle"
         return "idle"
+
+
+class RoomMindElectricityForecastSensor(CoordinatorEntity, SensorEntity):
+    """Publish the forecast of one physical heating/cooling system."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
+    _attr_translation_key = "electricity_forecast"
+    _unrecorded_attributes = frozenset({"forecast", "generated_at", "valid_until"})
+
+    def __init__(self, coordinator: RoomMindCoordinator, system_id: str) -> None:
+        super().__init__(coordinator)
+        self._system_id = system_id
+        self._attr_unique_id = f"{DOMAIN}_{system_id}_electricity_forecast"
+        self._attr_translation_placeholders = {"system": system_id.replace("_", " ")}
+        self.entity_id = f"sensor.{self._attr_unique_id}"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the versioned forecast snapshot as state attributes."""
+        data = self.coordinator.data or {}
+        return dict(data.get("electricity_forecasts", {}).get(self._system_id, {}))
+
+    @property
+    def native_value(self) -> float | None:
+        forecast = self.extra_state_attributes.get("forecast")
+        return float(forecast[0]["power_kw"]) if forecast else None

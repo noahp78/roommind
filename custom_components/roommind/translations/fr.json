@@ -44,6 +44,24 @@
       "air_quality": {
         "name": "{room} qualité de l’air mauvaise"
       }
+    },
+    "sensor": {
+      "electricity_forecast": {
+        "name": "Prévision électrique pour {system}"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Prévisions de consommation électrique",
+        "data": {
+          "electricity_forecasts": "Prévisions de consommation électrique"
+        }
+      }
+    },
+    "error": {
+      "invalid_electricity_forecasts": "Vérifiez les pièces, puissances et capteurs."
     }
   }
 }

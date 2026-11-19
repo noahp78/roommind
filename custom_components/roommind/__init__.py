@@ -64,6 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(async_track_area_changes(hass))
+    entry.async_on_unload(entry.add_update_listener(_async_reload_options))
 
     # Clean up orphaned entities (e.g. cover entities for rooms without covers)
     coordinator.cleanup_orphaned_entities()
@@ -74,6 +75,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_check_version_mismatch(hass)
 
     return True
+
+
+async def _async_reload_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Recreate electrical forecast sensors after their system settings change."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def async_track_area_changes(hass: HomeAssistant) -> Callable[[], None]:
